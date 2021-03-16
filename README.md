@@ -17,7 +17,7 @@ Short explanation [Webhook](https://en.wikipedia.org/wiki/Webhook)
 
 ## Description
 
-Script `test.sh` runs curl command to the `localhost` port `8080` path `webhook` sending json body:
+Script `test.sh` runs curl command to the `localhost:8080/webhook` sending json body:
 
 ```json
 {
