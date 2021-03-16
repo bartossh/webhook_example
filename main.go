@@ -1,4 +1,5 @@
-// THIS PACE OF CODE IS AN EXAMPLE ONLY THAT IS WHY IT IS CEPT ALL IN ONE FILE AND PACKAGE
+// THIS PACE OF CODE IS AN EXAMPLE ONLY
+// THAT IS WHY IT IS KEPT ALL IN ONE FILE AND ONE PACKAGE
 
 package main
 
@@ -32,11 +33,7 @@ type Payload struct {
 	Payload []byte `json:"payload"`
 }
 
-// HookResponsePayload contains subscriber address and payload data
-type HookResponsePayload struct {
-	HookRequest
-	Payload
-}
+type dispatcher func(address string, payload []byte)
 
 const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
@@ -71,42 +68,34 @@ func randStringBytes(n int) []byte {
 	return b
 }
 
-func runQueue(cq <-chan HookRequest, cd chan<- HookResponsePayload) {
+func runQueue(cq <-chan HookRequest, f dispatcher) {
 	go func() {
 		for v := range cq {
 			// heavy computations
 			time.Sleep(time.Second * 5)
 			s := randStringBytes(100)
 			p := Payload{s}
-			cd <- HookResponsePayload{
-				HookRequest: v,
-				Payload:     p,
-			}
-		}
-		close(cd)
-	}()
-}
-
-func runResponder(cd <-chan HookResponsePayload) {
-	go func() {
-		client := &http.Client{}
-		for v := range cd {
-			var p Payload
-			p.Payload = v.Payload.Payload
 			jsonPayload, err := json.Marshal(&p)
 			if err != nil {
 				log.Printf("error while encoding request: %s", err)
 			}
-			req, err := http.NewRequest("POST", v.Address, bytes.NewBuffer(jsonPayload))
-			if err != nil {
-				log.Printf("error while encoding request: %s", err)
-			}
-			resp, err := client.Do(req)
-			if err != nil {
-				log.Printf("error while sending request: %s", err)
-			}
-			defer resp.Body.Close()
+			f(v.Address, jsonPayload)
 		}
+	}()
+}
+
+func runResponder(address string, payload []byte) {
+	go func() {
+		client := &http.Client{}
+		req, err := http.NewRequest("POST", address, bytes.NewBuffer(payload))
+		if err != nil {
+			log.Printf("error while encoding request: %s", err)
+		}
+		resp, err := client.Do(req)
+		if err != nil {
+			log.Printf("error while sending request: %s", err)
+		}
+		defer resp.Body.Close()
 	}()
 }
 
@@ -152,7 +141,7 @@ func subscriberHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Printf("error subscribe handler decoding message %S\n", err)
 	}
-	log.Printf("message decoded to : %v\n", hookData)
+	log.Printf("<<< SUBSCRIBER >>> message decoded to : %v\n", hookData)
 	w.WriteHeader(http.StatusOK)
 	return
 }
@@ -218,10 +207,8 @@ func main() {
 	cs := make(chan os.Signal, 1)
 	signal.Notify(cs, os.Interrupt)
 
-	cq := make(chan HookRequest, 100)
-	cd := make(chan HookResponsePayload, 100)
+	cq := make(chan HookRequest, 100) //TODO: here we can make map of hook chan to dispatcher function
 
-	runQueue(cq, cd)
-	runResponder(cd)
+	runQueue(cq, runResponder)
 	serverRun("127.0.0.1:8080", cs, cq)
 }
