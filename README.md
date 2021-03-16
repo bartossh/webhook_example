@@ -6,6 +6,8 @@ Short explanation [Webhook](https://en.wikipedia.org/wiki/Webhook)
 
 ## Dependencies
 
+This example uses go modules to instal dependencies use `go get .` command
+
 - Go version 1.16 or higher
 - gorilla mux router
 - cors to allow cross origin resource sharing

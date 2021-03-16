@@ -1,17 +1,24 @@
+// THIS PACE OF CODE IS AN EXAMPLE ONLY THAT IS WHY IT IS CEPT ALL IN ONE FILE AND PACKAGE
+
 package main
 
 import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"log"
 	"math/rand"
 	"net/http"
 	"os"
 	"os/signal"
+	"runtime"
 	"time"
 
+	_ "net/http/pprof"
+
 	"github.com/gorilla/mux"
+	"github.com/joho/godotenv"
 	"github.com/rs/cors"
 )
 
@@ -32,6 +39,29 @@ type HookResponsePayload struct {
 }
 
 const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+
+var isDebug bool
+
+type debugServer struct {
+	*http.Server
+}
+
+func newDebugServer(address string) *debugServer {
+	return &debugServer{
+		&http.Server{
+			Addr:    address,
+			Handler: http.DefaultServeMux,
+		},
+	}
+}
+
+func runDebugger() {
+	debugServer := newDebugServer(fmt.Sprintf("%s:%d", "localhost", 6060))
+	log.Printf("debugger started on %s", "localhost:6060")
+	go func() {
+		log.Fatal(debugServer.ListenAndServe())
+	}()
+}
 
 func randStringBytes(n int) []byte {
 	b := make([]byte, n)
@@ -171,7 +201,20 @@ func serverRun(addr string, cs <-chan os.Signal, cq chan<- HookRequest) {
 	os.Exit(0)
 }
 
+func init() {
+	err := godotenv.Load()
+	if err != nil {
+		log.Printf("cannot load .env file %s\n", err)
+	}
+	isDebug = os.Getenv("DEBUG") == "true"
+}
+
 func main() {
+	if isDebug {
+		runtime.SetBlockProfileRate(1)
+		runDebugger()
+	}
+
 	cs := make(chan os.Signal, 1)
 	signal.Notify(cs, os.Interrupt)
 
